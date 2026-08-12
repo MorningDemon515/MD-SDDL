@@ -1,0 +1,10 @@
+#include <vulkan/vulkan.h>
+#include <iostream>
+
+int main() {
+    uint32_t extensionCount = 0;
+    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+
+    std::cout << "Vulkan Extensions Count: " << extensionCount << std::endl;
+    return 0;
+}
