@@ -36,14 +36,30 @@ target_include_directories(engine PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/thirdParty/stb/
 )
 
-target_link_libraries(engine
-        ${CMAKE_CURRENT_SOURCE_DIR}/thirdParty/SDL3-3.4.12/lib/libSDL3.a
-)
+if(UNIX)
+   target_link_libraries(engine
+        ${CMAKE_CURRENT_SOURCE_DIR}/thirdParty/SDL3-3.4.12/lib/linux/libSDL3.a
+   )
+
+endif()
+
+if(WIN32)
+   target_link_libraries(engine
+        ${CMAKE_CURRENT_SOURCE_DIR}/thirdParty/SDL3-3.4.12/lib/windows/libSDL3.a
+
+        setupapi
+        winmm
+        imm32
+        version
+   )
+
+   target_link_options(engine PRIVATE -static)
+endif()
 
 target_compile_options(engine PRIVATE
         -O3            
         -ffast-math  
- )
+)
 
 add_custom_command(
     TARGET engine POST_BUILD

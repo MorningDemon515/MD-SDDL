@@ -1,0 +1,5 @@
+You need at least a 64-bit system to build this.
+
+Windows systems require MinGW-w64 for building.
+
+For Linux systems, building the EXE requires adding the parameter `-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain-mingw.cmake` during the configuration phase.
