@@ -20,6 +20,8 @@ namespace Project4
 
         private D3DCompiler _compiler = default;
         
+        public unsafe ID3D10Blob* vertexCode = default;
+        
         public unsafe Shader(ID3D11Device* _device, string vShaderCode, string pShaderCode)
         {
             
@@ -27,8 +29,7 @@ namespace Project4
             
             var vertexShaderBytes = Encoding.ASCII.GetBytes(vShaderCode);
             var pixelShaderBytes = Encoding.ASCII.GetBytes(pShaderCode);
-
-            ID3D10Blob* vertexCode = default;
+            
             ID3D10Blob* vertexErrors = default;
             
             ID3D10Blob* pixelCode = default;

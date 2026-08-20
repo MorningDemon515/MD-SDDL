@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 using Silk.NET.Core.Native;
@@ -27,6 +28,14 @@ namespace Project4
         private static unsafe ID3D11RenderTargetView* _renderTarget = default;
         
         private static Shader _shader;
+
+        private static uint _vertexStride; 
+        private static uint _vertexOffset = 0; 
+        
+        private static unsafe ID3D11Buffer* _vertexBuffer = default;
+        private static unsafe ID3D11Buffer* _indexBuffer = default;
+        
+        private static unsafe ID3D11InputLayout* _inputLayout = default;
         
         private static unsafe void OnLoad()
         {
@@ -84,6 +93,88 @@ namespace Project4
             _context->OMSetRenderTargets(1, ref _renderTarget, ref Unsafe.NullRef<ID3D11DepthStencilView>());
             
             _shader = new Shader(_device, Triangle.vertex, Triangle.pixel);
+
+            _vertexStride = (uint)sizeof(Vertex);
+
+            Vertex[] vertices = new Vertex[4]
+            {
+                new Vertex(-0.5f,  0.5f, 0.0f, RGB.RED[0], RGB.RED[1], RGB.RED[2]),
+                new Vertex( 0.5f,  0.5f, 0.0f, RGB.GREEN[0], RGB.GREEN[1], RGB.GREEN[2]),
+                new Vertex( 0.5f, -0.5f, 0.0f, RGB.BLUE[0], RGB.BLUE[1], RGB.BLUE[2]),
+                new Vertex(-0.5f, -0.5f, 0.0f, RGB.WHITE[0], RGB.WHITE[1], RGB.WHITE[2])
+            };
+
+            uint[] indices = new uint[6]
+            {
+                3, 1, 2,
+                3, 0, 1
+            };
+            
+            var bufferDesc = new BufferDesc
+            {
+                ByteWidth = (uint) (vertices.Length * _vertexStride),
+                Usage = Usage.Default,
+                BindFlags = (uint) BindFlag.VertexBuffer
+            };
+
+            fixed (Vertex* verticesPtr = &vertices[0])
+            {
+                var subresourceData = new SubresourceData
+                {
+                    PSysMem = verticesPtr
+                };
+                
+                _device->CreateBuffer(in bufferDesc, in subresourceData, ref _vertexBuffer);
+            }
+            
+            bufferDesc = new BufferDesc
+            {
+                ByteWidth = (uint) (indices.Length * sizeof(uint)),
+                Usage = Usage.Default,
+                BindFlags = (uint) BindFlag.IndexBuffer
+            };
+
+            fixed (uint* indicesPtr = &indices[0])
+            {
+                var subresourceData = new SubresourceData
+                {
+                    PSysMem = indicesPtr
+                };
+                
+                _device->CreateBuffer(in bufferDesc, in subresourceData, ref _indexBuffer);
+            }
+
+            InputElementDesc[] inputDesc = new InputElementDesc[2]
+            {
+                new InputElementDesc((byte*)SilkMarshal.StringToMemory("POSITION"),
+                    0,
+                    Format.FormatR32G32B32Float,
+                    0,
+                    0,
+                    InputClassification.PerVertexData,
+                    0),
+
+                new InputElementDesc((byte*)SilkMarshal.StringToMemory("COLOR"),
+                    0,
+                    Format.FormatR32G32B32Float,
+                    0,
+                    3 * sizeof(float),
+                    InputClassification.PerVertexData,
+                    0),
+            };
+
+            fixed (InputElementDesc* inputDescRef = &inputDesc[0])
+            {
+                _device->CreateInputLayout
+                (
+                    inputDescRef,
+                    2,
+                    _shader.vertexCode->GetBufferPointer(),
+                    _shader.vertexCode->GetBufferSize(),
+                    ref _inputLayout
+                );
+            }
+
         }
 
         private static unsafe void OnUpdate(double deltaTime)
@@ -119,13 +210,22 @@ namespace Project4
            
            _shader.SetShader(_context);
            _context->IASetPrimitiveTopology(D3DPrimitiveTopology.D3DPrimitiveTopologyTrianglelist);
-           _context->Draw(3, 0);           
+           _context->IASetInputLayout(_inputLayout);
+           _context->IASetVertexBuffers(0, 1, ref _vertexBuffer,  in _vertexStride,  in _vertexOffset);
+           _context->IASetIndexBuffer(_indexBuffer, Format.FormatR32Uint, 0);
+
+           _context->DrawIndexed(6, 0, 0);
 
            _swapChain->Present(1, 0);
         }
 
         private static unsafe void OnClosing()
         {
+            _inputLayout->Release();
+            
+            _vertexBuffer->Release();
+            _indexBuffer->Release();
+            
             _device->Release();
             _context->Release();
             _swapChain->Release();
