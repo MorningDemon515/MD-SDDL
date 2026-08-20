@@ -6,6 +6,7 @@ using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
 
+using Silk.NET.Direct3D.Compilers;
 using Silk.NET.Direct3D11;
 using Silk.NET.DXGI;
 
@@ -24,6 +25,8 @@ namespace Project4
         private static unsafe ID3D11DeviceContext* _context = default;
         private static unsafe IDXGISwapChain* _swapChain = default;
         private static unsafe ID3D11RenderTargetView* _renderTarget = default;
+        
+        private static Shader _shader;
         
         private static unsafe void OnLoad()
         {
@@ -64,7 +67,7 @@ namespace Project4
                 (IDXGIAdapter*)null,
                 D3DDriverType.Hardware,
                 nint.Zero,
-                (uint)CreateDeviceFlag.Debug,
+                (uint)CreateDeviceFlag.None,
                 null,
                 0,
                 D3D11.SdkVersion,
@@ -80,6 +83,7 @@ namespace Project4
             
             _context->OMSetRenderTargets(1, ref _renderTarget, ref Unsafe.NullRef<ID3D11DepthStencilView>());
             
+            _shader = new Shader(_device, Triangle.vertex, Triangle.pixel);
         }
 
         private static unsafe void OnUpdate(double deltaTime)
@@ -111,8 +115,12 @@ namespace Project4
             
            _context->RSSetViewports(1, in viewport);
            
-           _context->ClearRenderTargetView(_renderTarget, ref RGBA.RED[0]);
+           _context->ClearRenderTargetView(_renderTarget, ref RGBA.BLACK[0]);
            
+           _shader.SetShader(_context);
+           _context->IASetPrimitiveTopology(D3DPrimitiveTopology.D3DPrimitiveTopologyTrianglelist);
+           _context->Draw(3, 0);           
+
            _swapChain->Present(1, 0);
         }
 
