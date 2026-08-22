@@ -30,6 +30,10 @@ namespace Project4
         private static unsafe ID3D11DeviceContext* _context = default;
         private static unsafe IDXGISwapChain* _swapChain = default;
         private static unsafe ID3D11RenderTargetView* _renderTarget = default;
+
+        private static unsafe ID3D11DepthStencilState* depthStencil = default;
+        private static unsafe ID3D11DepthStencilView* depthStencilView = default;
+        private static unsafe ID3D11Texture2D* depthStencilBuffer = default;
         
         private static Shader _shader;
 
@@ -38,6 +42,9 @@ namespace Project4
         
         private static unsafe ID3D11Buffer* _vertexBuffer = default;
         private static unsafe ID3D11Buffer* _indexBuffer = default;
+
+        private static unsafe ID3D11Buffer* _vertexBuffer2 = default;
+        private static unsafe ID3D11Buffer* _indexBuffer2 = default;
         
         private static unsafe ID3D11InputLayout* _inputLayout = default;
 
@@ -106,8 +113,53 @@ namespace Project4
             
             using var framebuffer = _swapChain->GetBuffer<ID3D11Texture2D>(0);
             _device->CreateRenderTargetView(framebuffer, null, ref _renderTarget);
+
+            SampleDesc dSS_Desc = new SampleDesc
+            {
+                Count = 1,
+                Quality = 0
+            };
+
+            Texture2DDesc dS_Desc = new Texture2DDesc
+            {
+                Width = (uint)_window.FramebufferSize.X,
+                Height = (uint)_window.FramebufferSize.Y,
+                MipLevels = 1,
+                ArraySize = 1,
+                Format = Format.FormatD24UnormS8Uint,
+                SampleDesc = dSS_Desc,
+                Usage = Usage.Default,
+                BindFlags = (uint)BindFlag.DepthStencil
+            };
+
+            fixed(ID3D11Texture2D** data = &depthStencilBuffer)
+            {
+                _device->CreateTexture2D(&dS_Desc, null, data);  
+            };
+
+            DepthStencilViewDesc dsVDesc = new DepthStencilViewDesc
+            {
+                Format =   Format.FormatD24UnormS8Uint,
+                ViewDimension = DsvDimension.Texture2D
+            };
+
+            fixed(ID3D11DepthStencilView** data = &depthStencilView)
+            {
+                _device->CreateDepthStencilView((ID3D11Resource*)depthStencilBuffer, &dsVDesc, data);
+            };
+    
+            DepthStencilDesc depthStencil_Desc = new DepthStencilDesc
+            {
+                DepthEnable = 1,                     
+                DepthWriteMask = DepthWriteMask.All, 
+                DepthFunc = ComparisonFunc.Less,
+                StencilEnable = false
+            };
+
+            _device->CreateDepthStencilState(ref depthStencil_Desc, ref depthStencil);
             
-            _context->OMSetRenderTargets(1, ref _renderTarget, ref Unsafe.NullRef<ID3D11DepthStencilView>());
+            _context->OMSetRenderTargets(1, ref _renderTarget, depthStencilView);
+            _context->OMSetDepthStencilState(depthStencil, 1);
             
             _shader = new Shader(_device, Triangle.vertex, Triangle.pixel);
 
@@ -162,6 +214,16 @@ namespace Project4
                 
                 _device->CreateBuffer(in bufferDesc, in subresourceData, ref _vertexBuffer);
             }
+
+            fixed (Vertex* verticesPtr = &vertices[0])
+            {
+                var subresourceData = new SubresourceData
+                {
+                    PSysMem = verticesPtr
+                };
+                
+                _device->CreateBuffer(in bufferDesc, in subresourceData, ref _vertexBuffer2);
+            }
             
             bufferDesc = new BufferDesc
             {
@@ -178,6 +240,16 @@ namespace Project4
                 };
                 
                 _device->CreateBuffer(in bufferDesc, in subresourceData, ref _indexBuffer);
+            }
+
+            fixed (uint* indicesPtr = &indices[0])
+            {
+                var subresourceData = new SubresourceData
+                {
+                    PSysMem = indicesPtr
+                };
+                
+                _device->CreateBuffer(in bufferDesc, in subresourceData, ref _indexBuffer2);
             }
 
             InputElementDesc[] inputDesc = new InputElementDesc[4]
@@ -354,6 +426,13 @@ namespace Project4
            _context->RSSetViewports(1, in viewport);
            
            _context->ClearRenderTargetView(_renderTarget, ref RGBA.BLACK[0]);
+
+           _context->ClearDepthStencilView(
+                depthStencilView, 
+                (uint)ClearFlag.Depth | (uint)ClearFlag.Stencil, 
+                1.0f, 
+                0
+            );
            
            _shader.SetShader(_context);
             _context->PSSetSamplers(0, 1, t_Sampler);
@@ -402,6 +481,51 @@ namespace Project4
 
            _context->DrawIndexed(6, 0, 0);
 
+           //--------------------------------------------------------------------------------2
+           _shader.SetShader(_context);
+            _context->PSSetSamplers(0, 1, t_Sampler);
+            _context->PSSetShaderResources(0, 1, ninja_rV);
+
+            aspect = (float)_window.Size.X / (float)_window.Size.Y;
+            n = 0.1f; f= 100.0f;
+
+            shader_Buffer0_data = default;
+
+            shader_Buffer0_data.projection = new Matrix(
+                1.0f/(aspect * 0.4142f) , 0.0f, 0.0f, 0.0f,
+                0.0f, 1.0f/0.4142f, 0.0f, 0.0f,
+                0.0f, 0.0f, f / (f - n),-(n * f) / (f- n ),
+                0.0f, 0.0f, 1.0f, 0.0f
+            );
+
+            shader_Buffer0_data.view = new Matrix(
+                1.0f, 0.0f, 0.0f, 0.0f,
+                0.0f, 1.0f, 0.0f, 0.0f, 
+                0.0f, 0.0f, 1.0f, 5.0f,
+                0.0f, 0.0f, 0.0f, 1.0f
+            );
+
+            angle = 1.048f;
+            shader_Buffer0_data.model = new Matrix(
+                1.0f, 0.0f, 0.0f, 0.0f,
+                0.0f, (float)Math.Cos(angle), -(float)Math.Sin(angle), 0.0f, 
+                0.0f, (float)Math.Sin(angle), (float)Math.Cos(angle), 0.0f, 
+                0.0f, 0.0f, 0.0f, 1.0f
+            );
+
+            _context->Map((ID3D11Resource*)shader_Buffer0, 0, Map.WriteDiscard, 0, &shader_Buffer0_MapRe);
+                 dataPtr = (Shader_Buffer0*)shader_Buffer0_MapRe.PData;
+                *dataPtr = shader_Buffer0_data; 
+
+            _context->Unmap((ID3D11Resource*)shader_Buffer0, 0);
+
+           _context->IASetPrimitiveTopology(D3DPrimitiveTopology.D3DPrimitiveTopologyTrianglelist);
+           _context->IASetInputLayout(_inputLayout);
+           _context->IASetVertexBuffers(0, 1, ref _vertexBuffer2,  in _vertexStride,  in _vertexOffset);
+           _context->IASetIndexBuffer(_indexBuffer2, Format.FormatR32Uint, 0);
+
+           _context->DrawIndexed(6, 0, 0);
+
            _swapChain->Present(1, 0);
         }
 
@@ -417,7 +541,13 @@ namespace Project4
             
             _vertexBuffer->Release();
             _indexBuffer->Release();
+
+            _vertexBuffer2->Release();
+            _indexBuffer2->Release();
             
+            depthStencilBuffer->Release();
+            depthStencilView->Release();
+            depthStencil->Release();
             _device->Release();
             _context->Release();
             _swapChain->Release();
@@ -429,15 +559,67 @@ namespace Project4
 
         private static unsafe void OnResize(Vector2D<int> size)
         {
+            
             ID3D11RenderTargetView* nullRtv = null;
             _context->OMSetRenderTargets(0, ref nullRtv, ref Unsafe.NullRef<ID3D11DepthStencilView>());
+            _context->OMSetDepthStencilState(depthStencil, 0);
+
+            depthStencilBuffer->Release();
+            depthStencilView->Release();
+            depthStencil->Release();
             _renderTarget->Release();
             
             _swapChain->ResizeBuffers(0, (uint) size.X, (uint) size.Y, Format.FormatB8G8R8A8Unorm, 0);
             
             using var framebuffer = _swapChain->GetBuffer<ID3D11Texture2D>(0);
             _device->CreateRenderTargetView(framebuffer, null, ref _renderTarget);
-            _context->OMSetRenderTargets(1, ref _renderTarget, ref Unsafe.NullRef<ID3D11DepthStencilView>());
+
+            SampleDesc dSS_Desc = new SampleDesc
+            {
+                Count = 1,
+                Quality = 0
+            };
+
+            Texture2DDesc dS_Desc = new Texture2DDesc
+            {
+                Width = (uint)_window.FramebufferSize.X,
+                Height = (uint)_window.FramebufferSize.Y,
+                MipLevels = 1,
+                ArraySize = 1,
+                Format = Format.FormatD24UnormS8Uint,
+                SampleDesc = dSS_Desc,
+                Usage = Usage.Default,
+                BindFlags = (uint)BindFlag.DepthStencil
+            };
+
+            fixed(ID3D11Texture2D** data = &depthStencilBuffer)
+            {
+                _device->CreateTexture2D(&dS_Desc, null, data);  
+            };
+
+            DepthStencilViewDesc dsVDesc = new DepthStencilViewDesc
+            {
+                Format =   Format.FormatD24UnormS8Uint,
+                ViewDimension = DsvDimension.Texture2D
+            };
+
+            fixed(ID3D11DepthStencilView** data = &depthStencilView)
+            {
+                _device->CreateDepthStencilView((ID3D11Resource*)depthStencilBuffer, &dsVDesc, data);
+            };
+    
+            DepthStencilDesc depthStencil_Desc = new DepthStencilDesc
+            {
+                DepthEnable = 1,                     
+                DepthWriteMask = DepthWriteMask.All, 
+                DepthFunc = ComparisonFunc.Less,
+                StencilEnable = false
+            };
+
+            _device->CreateDepthStencilState(ref depthStencil_Desc, ref depthStencil);
+
+            _context->OMSetRenderTargets(1, ref _renderTarget, depthStencilView);
+            _context->OMSetDepthStencilState(depthStencil, 1);
         }
     }
 }
