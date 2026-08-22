@@ -11,12 +11,14 @@ namespace Project4
         {
             float3 position : POSITION0;
             float3 color : COLOR0;
+            float2 uv : TEXCOORD0;
         };
 
         struct VS_OUT
         {
             float4 position : SV_POSITION;
             float3 color : COLOR0;
+            float2 uv : TEXCOORD0;
         };
 
         #endif
@@ -31,6 +33,7 @@ namespace Project4
 
             output.position = float4(input.position,  1.0);
             output.color = input.color;
+            output.uv = float2(input.uv.x, 1.0f - input.uv.y);
 
             return output;
         }
@@ -40,9 +43,13 @@ namespace Project4
         #region  pixel.hlsl
 
         public const string pixel = IO + @"
+        Texture2D ninja_t : register(t0);
+
+        SamplerState t_Sampler : register(s0);
+
         float4 main(VS_OUT input) : SV_TARGET
         {
-            return float4(input.color, 1.0);
+            return ninja_t.Sample(t_Sampler, input.uv);
         }
         ";
 
