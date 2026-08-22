@@ -13,6 +13,7 @@ using Silk.NET.DXGI;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using System.Reflection;
 
 namespace Project4
 {
@@ -43,7 +44,29 @@ namespace Project4
         private static unsafe ID3D11Texture2D* ninja_t = default;
         private static unsafe ID3D11SamplerState* t_Sampler = default;
         private static unsafe ID3D11ShaderResourceView* ninja_rV = default;
+
+        private static unsafe ID3D11Buffer* shader_Buffer0 = default;
         
+        struct Matrix
+        {
+            float _11, _12, _13, _14;  
+            float _21, _22, _23, _24;
+            float _31, _32, _33, _34;
+            float _41, _42, _43, _44;
+
+            public Matrix(
+                float _11, float _12, float _13, float _14,
+                float _21, float _22, float _23, float _24,
+                float _31, float _32, float _33, float _34,
+                float _41, float _42, float _43, float _44)
+            {
+                this._11 = _11; this._12 = _12; this._13 = _13; this._14 = _14;
+                this._21 = _21; this._22 = _22; this._23 = _23; this._24 = _24;
+                this._31 = _31; this._32 = _32; this._33 = _33; this._34 = _34;
+                this._41 = _41; this._42 = _42; this._43 = _43; this._44 = _44;
+            }
+        };
+
         private static unsafe void OnLoad()
         {
             _input = _window.CreateInput();
@@ -274,6 +297,30 @@ namespace Project4
                 in samplerDesc,
                 ref t_Sampler
             );
+
+            Matrix transform = new Matrix(
+                1.0f, 0.0f, 0.0f, 0.5f,
+                0.0f, 1.0f, 0.0f, 0.0f,
+                0.0f, 0.0f, 1.0f, 0.0f,
+                0.0f, 0.0f, 0.0f, 1.0f
+            );
+
+            BufferDesc shader_Buffer0_Desc = new BufferDesc
+            {
+                Usage = Usage.Dynamic,
+                ByteWidth = (uint)sizeof(Matrix),
+                BindFlags = (uint)BindFlag.ConstantBuffer,
+                CPUAccessFlags = (uint)CpuAccessFlag.Write
+            };
+
+            _device->CreateBuffer(ref shader_Buffer0_Desc, null, ref shader_Buffer0);
+
+            MappedSubresource shader_Buffer0_MapRe;
+            _context->Map((ID3D11Resource*)shader_Buffer0, 0, Map.WriteDiscard, 0, &shader_Buffer0_MapRe);
+                Matrix* dataPtr = (Matrix*)shader_Buffer0_MapRe.PData;
+                *dataPtr = transform; 
+
+            _context->Unmap((ID3D11Resource*)shader_Buffer0, 0);
     
         }
 
@@ -312,6 +359,8 @@ namespace Project4
             _context->PSSetSamplers(0, 1, t_Sampler);
             _context->PSSetShaderResources(0, 1, ninja_rV);
 
+            _context->VSSetConstantBuffers(0, 1, ref shader_Buffer0);
+
            _context->IASetPrimitiveTopology(D3DPrimitiveTopology.D3DPrimitiveTopologyTrianglelist);
            _context->IASetInputLayout(_inputLayout);
            _context->IASetVertexBuffers(0, 1, ref _vertexBuffer,  in _vertexStride,  in _vertexOffset);
@@ -324,6 +373,8 @@ namespace Project4
 
         private static unsafe void OnClosing()
         {
+            shader_Buffer0->Release();
+
             ninja_t->Release();
             ninja_rV->Release();
             t_Sampler->Release();

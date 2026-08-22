@@ -9,16 +9,16 @@ namespace Project4
 
         struct VS_IN
         {
-            float3 position : POSITION0;
-            float3 color : COLOR0;
-            float2 uv : TEXCOORD0;
+            float3 position : POSITION;
+            float3 color : COLOR;
+            float2 uv : TEXCOORD;
         };
 
         struct VS_OUT
         {
             float4 position : SV_POSITION;
-            float3 color : COLOR0;
-            float2 uv : TEXCOORD0;
+            float3 color : COLOR;
+            float2 uv : TEXCOORD;
         };
 
         #endif
@@ -27,11 +27,16 @@ namespace Project4
 
         #region  vertex.hlsl
         public const string vertex = IO + @"
-        VS_OUT main(VS_IN input, uint vertexID : SV_VertexID)
+        cbuffer Buffer0 : register(b0)
+        {
+            row_major float4x4 transform;
+        };
+
+        VS_OUT main(VS_IN input)
         {
             VS_OUT output;
 
-            output.position = float4(input.position,  1.0);
+            output.position = mul(transform, float4(input.position,  1.0));
             output.color = input.color;
             output.uv = float2(input.uv.x, 1.0f - input.uv.y);
 
