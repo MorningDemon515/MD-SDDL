@@ -54,6 +54,7 @@ namespace Project4
             {
                 if (vertexErrors != null)
                 {
+                    Console.WriteLine("Vertex Shader: ");
                     Console.WriteLine(SilkMarshal.PtrToString((nint) vertexErrors->GetBufferPointer()));
                 }
 
@@ -79,6 +80,7 @@ namespace Project4
             {
                 if (pixelErrors != null)
                 {
+                    Console.WriteLine("Pixel Shader: ");
                     Console.WriteLine(SilkMarshal.PtrToString((nint) pixelErrors->GetBufferPointer()));
                 }
 

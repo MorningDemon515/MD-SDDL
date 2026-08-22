@@ -46,25 +46,12 @@ namespace Project4
         private static unsafe ID3D11ShaderResourceView* ninja_rV = default;
 
         private static unsafe ID3D11Buffer* shader_Buffer0 = default;
-        
-        struct Matrix
-        {
-            float _11, _12, _13, _14;  
-            float _21, _22, _23, _24;
-            float _31, _32, _33, _34;
-            float _41, _42, _43, _44;
 
-            public Matrix(
-                float _11, float _12, float _13, float _14,
-                float _21, float _22, float _23, float _24,
-                float _31, float _32, float _33, float _34,
-                float _41, float _42, float _43, float _44)
-            {
-                this._11 = _11; this._12 = _12; this._13 = _13; this._14 = _14;
-                this._21 = _21; this._22 = _22; this._23 = _23; this._24 = _24;
-                this._31 = _31; this._32 = _32; this._33 = _33; this._34 = _34;
-                this._41 = _41; this._42 = _42; this._43 = _43; this._44 = _44;
-            }
+        struct Shader_Buffer0
+        {
+            public Matrix projection;
+            public Matrix view;
+            public Matrix model;
         };
 
         private static unsafe void OnLoad()
@@ -128,10 +115,29 @@ namespace Project4
 
             Vertex[] vertices = new Vertex[4]
             {
-                new Vertex(-0.5f,  0.5f, 0.0f, RGB.RED[0], RGB.RED[1], RGB.RED[2], 0.0f, 1.0f),
-                new Vertex( 0.5f,  0.5f, 0.0f, RGB.GREEN[0], RGB.GREEN[1], RGB.GREEN[2], 1.0f, 1.0f),
-                new Vertex( 0.5f, -0.5f, 0.0f, RGB.BLUE[0], RGB.BLUE[1], RGB.BLUE[2], 1.0f, 0.0f),
-                new Vertex(-0.5f, -0.5f, 0.0f, RGB.WHITE[0], RGB.WHITE[1], RGB.WHITE[2], 0.0f, 0.0f)
+                new Vertex(
+                    -0.5f,  0.5f, 0.0f, 
+                     RGB.RED[0], RGB.RED[1], RGB.RED[2], 
+                     0.0f, 1.0f,
+                     0.0f, 0.0f, -1.0f),
+
+                new Vertex( 
+                    0.5f,  0.5f, 0.0f, 
+                    RGB.GREEN[0], RGB.GREEN[1], RGB.GREEN[2], 
+                    1.0f, 1.0f,
+                    0.0f, 0.0f, -1.0f),
+
+                new Vertex( 
+                    0.5f, -0.5f, 0.0f, 
+                    RGB.BLUE[0], RGB.BLUE[1], RGB.BLUE[2], 
+                    1.0f, 0.0f,
+                    0.0f, 0.0f, -1.0f),
+
+                new Vertex(
+                    -0.5f, -0.5f, 0.0f, 
+                    RGB.WHITE[0], RGB.WHITE[1], RGB.WHITE[2], 
+                    0.0f, 0.0f,
+                    0.0f, 0.0f, -1.0f)
             };
 
             uint[] indices = new uint[6]
@@ -174,7 +180,7 @@ namespace Project4
                 _device->CreateBuffer(in bufferDesc, in subresourceData, ref _indexBuffer);
             }
 
-            InputElementDesc[] inputDesc = new InputElementDesc[3]
+            InputElementDesc[] inputDesc = new InputElementDesc[4]
             {
                 new InputElementDesc((byte*)SilkMarshal.StringToMemory("POSITION"),
                     0,
@@ -198,7 +204,15 @@ namespace Project4
                     0,
                     6 * sizeof(float),
                     InputClassification.PerVertexData,
-                    0)
+                    0),
+
+                new InputElementDesc((byte*)SilkMarshal.StringToMemory("NORMAL"),
+                    0,
+                    Format.FormatR32G32B32Float,
+                    0,
+                    8 * sizeof(float),
+                    InputClassification.PerVertexData,
+                    0),
             };
 
             fixed (InputElementDesc* inputDescRef = &inputDesc[0])
@@ -206,7 +220,7 @@ namespace Project4
                 _device->CreateInputLayout
                 (
                     inputDescRef,
-                    3,
+                    4,
                     _shader.vertexCode->GetBufferPointer(),
                     _shader.vertexCode->GetBufferSize(),
                     ref _inputLayout
@@ -298,29 +312,15 @@ namespace Project4
                 ref t_Sampler
             );
 
-            Matrix transform = new Matrix(
-                1.0f, 0.0f, 0.0f, 0.5f,
-                0.0f, 1.0f, 0.0f, 0.0f,
-                0.0f, 0.0f, 1.0f, 0.0f,
-                0.0f, 0.0f, 0.0f, 1.0f
-            );
-
             BufferDesc shader_Buffer0_Desc = new BufferDesc
             {
                 Usage = Usage.Dynamic,
-                ByteWidth = (uint)sizeof(Matrix),
+                ByteWidth = (uint)sizeof(Shader_Buffer0),
                 BindFlags = (uint)BindFlag.ConstantBuffer,
                 CPUAccessFlags = (uint)CpuAccessFlag.Write
             };
 
             _device->CreateBuffer(ref shader_Buffer0_Desc, null, ref shader_Buffer0);
-
-            MappedSubresource shader_Buffer0_MapRe;
-            _context->Map((ID3D11Resource*)shader_Buffer0, 0, Map.WriteDiscard, 0, &shader_Buffer0_MapRe);
-                Matrix* dataPtr = (Matrix*)shader_Buffer0_MapRe.PData;
-                *dataPtr = transform; 
-
-            _context->Unmap((ID3D11Resource*)shader_Buffer0, 0);
     
         }
 
@@ -353,11 +353,45 @@ namespace Project4
             
            _context->RSSetViewports(1, in viewport);
            
-           _context->ClearRenderTargetView(_renderTarget, ref RGBA.WHITE[0]);
+           _context->ClearRenderTargetView(_renderTarget, ref RGBA.BLACK[0]);
            
            _shader.SetShader(_context);
             _context->PSSetSamplers(0, 1, t_Sampler);
             _context->PSSetShaderResources(0, 1, ninja_rV);
+
+            float aspect = (float)_window.Size.X / (float)_window.Size.Y;
+            float n = 0.1f, f= 100.0f;
+
+            Shader_Buffer0 shader_Buffer0_data = default;
+
+            shader_Buffer0_data.projection = new Matrix(
+                1.0f/(aspect * 0.4142f) , 0.0f, 0.0f, 0.0f,
+                0.0f, 1.0f/0.4142f, 0.0f, 0.0f,
+                0.0f, 0.0f, f / (f - n),-(n * f) / (f- n ),
+                0.0f, 0.0f, 1.0f, 0.0f
+            );
+
+            shader_Buffer0_data.view = new Matrix(
+                1.0f, 0.0f, 0.0f, 0.0f,
+                0.0f, 1.0f, 0.0f, 0.0f, 
+                0.0f, 0.0f, 1.0f, 3.0f,
+                0.0f, 0.0f, 0.0f, 1.0f
+            );
+
+            float angle = 1.048f;
+            shader_Buffer0_data.model = new Matrix(
+                1.0f, 0.0f, 0.0f, 0.0f,
+                0.0f, (float)Math.Cos(angle), -(float)Math.Sin(angle), 0.0f, 
+                0.0f, (float)Math.Sin(angle), (float)Math.Cos(angle), 0.0f, 
+                0.0f, 0.0f, 0.0f, 1.0f
+            );
+
+             MappedSubresource shader_Buffer0_MapRe;
+            _context->Map((ID3D11Resource*)shader_Buffer0, 0, Map.WriteDiscard, 0, &shader_Buffer0_MapRe);
+                Shader_Buffer0* dataPtr = (Shader_Buffer0*)shader_Buffer0_MapRe.PData;
+                *dataPtr = shader_Buffer0_data; 
+
+            _context->Unmap((ID3D11Resource*)shader_Buffer0, 0);
 
             _context->VSSetConstantBuffers(0, 1, ref shader_Buffer0);
 
